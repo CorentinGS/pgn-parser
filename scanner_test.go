@@ -7,17 +7,7 @@ import (
 	"testing"
 )
 
-// Helper function to read and tokenize a game
-func readAndTokenize(scanner *Scanner) ([]Token, error) {
-	game, err := scanner.ScanGame()
-	if err != nil {
-		return nil, err
-	}
-	return TokenizeGame(game)
-}
-
 func TestScanner(t *testing.T) {
-	// Open the fixture file
 	file, err := os.Open(filepath.Join("fixtures", "multi_game.pgn"))
 	if err != nil {
 		t.Fatalf("Failed to open fixture file: %v", err)
@@ -27,9 +17,14 @@ func TestScanner(t *testing.T) {
 	scanner := NewScanner(file)
 
 	// Test first game
-	tokens, err := readAndTokenize(scanner)
+	game, err := scanner.ScanGame()
 	if err != nil {
 		t.Fatalf("Failed to read first game: %v", err)
+	}
+
+	tokens, err := TokenizeGame(game)
+	if err != nil {
+		t.Fatalf("Failed to tokenize first game: %v", err)
 	}
 
 	expectedFirstGame := []struct {
@@ -105,40 +100,41 @@ func TestScanner(t *testing.T) {
 	}
 
 	// Test second game (if exists)
-	tokens, err = readAndTokenize(scanner)
+	game, err = scanner.ScanGame()
 	if err != nil && err != io.EOF {
 		t.Errorf("Unexpected error reading second game: %v", err)
 	}
 
-	// Test HasNext functionality
+	// Test HasNext functionality by counting games
 	file.Seek(0, 0) // Reset file to beginning
 	scanner = NewScanner(file)
 
-	gameCount := 0
+	var gameCount int
 	for scanner.HasNext() {
 		game, err := scanner.ScanGame()
 		if err != nil {
-			t.Errorf("Error reading game %d: %v", gameCount+1, err)
-			break
+			t.Fatalf("Error reading game %d: %v", gameCount+1, err)
 		}
 
-		_, err = TokenizeGame(game)
+		tokens, err = TokenizeGame(game)
 		if err != nil {
-			t.Errorf("Error tokenizing game %d: %v", gameCount+1, err)
-			break
+			t.Fatalf("Error tokenizing game %d: %v", gameCount+1, err)
+		}
+
+		if len(tokens) == 0 {
+			t.Errorf("Game %d has no tokens", gameCount+1)
 		}
 
 		gameCount++
 	}
 
-	expectedGames := 4 // Update this based on your fixture file
+	expectedGames := 4
 	if gameCount != expectedGames {
 		t.Errorf("Expected %d games, got %d", expectedGames, gameCount)
 	}
 }
 
 func TestScannerEmptyFile(t *testing.T) {
-	// Create a temporary empty file
 	tmpfile, err := os.CreateTemp("", "empty.pgn")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -161,7 +157,6 @@ func TestScannerEmptyFile(t *testing.T) {
 	}
 }
 
-// Additional test for sequential processing
 func TestSequentialProcessing(t *testing.T) {
 	file, err := os.Open(filepath.Join("fixtures", "multi_game.pgn"))
 	if err != nil {
@@ -173,7 +168,7 @@ func TestSequentialProcessing(t *testing.T) {
 	var games []*Game
 	var allTokens [][]Token
 
-	// Read all games sequentially
+	// Read all games using ScanGame in a loop
 	for {
 		game, err := scanner.ScanGame()
 		if err == io.EOF {
@@ -184,7 +179,6 @@ func TestSequentialProcessing(t *testing.T) {
 		}
 		games = append(games, game)
 
-		// Tokenize each game
 		tokens, err := TokenizeGame(game)
 		if err != nil {
 			t.Fatalf("Failed to tokenize game: %v", err)
@@ -192,15 +186,46 @@ func TestSequentialProcessing(t *testing.T) {
 		allTokens = append(allTokens, tokens)
 	}
 
-	// Verify we got the expected number of games
-	if len(games) != 4 { // Update this based on your fixture file
+	if len(games) != 4 {
 		t.Errorf("Expected 4 games, got %d", len(games))
 	}
 
-	// Verify each game has tokens
 	for i, tokens := range allTokens {
 		if len(tokens) == 0 {
 			t.Errorf("Game %d has no tokens", i+1)
 		}
+	}
+}
+
+// Additional test to verify HasNext doesn't consume games
+func TestHasNextDoesntConsume(t *testing.T) {
+	file, err := os.Open(filepath.Join("fixtures", "multi_game.pgn"))
+	if err != nil {
+		t.Fatalf("Failed to open fixture file: %v", err)
+	}
+	defer file.Close()
+
+	scanner := NewScanner(file)
+
+	// Call HasNext multiple times
+	for i := 0; i < 3; i++ {
+		if !scanner.HasNext() {
+			t.Errorf("Expected HasNext() to return true on call %d", i+1)
+		}
+	}
+
+	// Should still be able to read the first game
+	game, err := scanner.ScanGame()
+	if err != nil {
+		t.Fatalf("Failed to read first game after HasNext calls: %v", err)
+	}
+
+	tokens, err := TokenizeGame(game)
+	if err != nil {
+		t.Fatalf("Failed to tokenize first game: %v", err)
+	}
+
+	if len(tokens) == 0 {
+		t.Error("First game has no tokens after multiple HasNext calls")
 	}
 }
