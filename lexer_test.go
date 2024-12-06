@@ -85,3 +85,111 @@ func TestLexer(t *testing.T) {
 		t.Errorf("Expected EOF token, got %v", token.Type)
 	}
 }
+
+func TestCaptures(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Pawn capture",
+			input: "exf3",
+			expected: []Token{
+				{Type: FILE, Value: "e"},
+				{Type: CAPTURE, Value: "x"},
+				{Type: SQUARE, Value: "f3"},
+			},
+		},
+		{
+			name:  "Piece capture",
+			input: "Nxc6",
+			expected: []Token{
+				{Type: PIECE, Value: "N"},
+				{Type: CAPTURE, Value: "x"},
+				{Type: SQUARE, Value: "c6"},
+			},
+		},
+		{
+			name:  "Piece capture with file disambiguation",
+			input: "Nbxc6",
+			expected: []Token{
+				{Type: PIECE, Value: "N"},
+				{Type: FILE, Value: "b"},
+				{Type: CAPTURE, Value: "x"},
+				{Type: SQUARE, Value: "c6"},
+			},
+		},
+		{
+			name:  "Piece capture with rank disambiguation",
+			input: "N4xd5",
+			expected: []Token{
+				{Type: PIECE, Value: "N"},
+				{Type: RANK, Value: "4"},
+				{Type: CAPTURE, Value: "x"},
+				{Type: SQUARE, Value: "d5"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
+
+// Test captures in context
+func TestCapturesInGame(t *testing.T) {
+	input := "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6"
+
+	expectedTokens := []struct {
+		typ   TokenType
+		value string
+	}{
+		{MOVE_NUMBER, "1"},
+		{DOT, "."},
+		{SQUARE, "e4"},
+		{SQUARE, "e5"},
+		{MOVE_NUMBER, "2"},
+		{DOT, "."},
+		{PIECE, "N"},
+		{SQUARE, "f3"},
+		{PIECE, "N"},
+		{SQUARE, "c6"},
+		{MOVE_NUMBER, "3"},
+		{DOT, "."},
+		{PIECE, "B"},
+		{SQUARE, "b5"},
+		{SQUARE, "a6"},
+		{MOVE_NUMBER, "4"},
+		{DOT, "."},
+		{PIECE, "B"},
+		{CAPTURE, "x"},
+		{SQUARE, "c6"},
+	}
+
+	lexer := NewLexer(input)
+
+	for i, expected := range expectedTokens {
+		token := lexer.NextToken()
+		if token.Type != expected.typ || token.Value != expected.value {
+			t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+				i, expected.typ, expected.value, token.Type, token.Value)
+		}
+	}
+}

@@ -22,6 +22,9 @@ const (
 	COMMENT_END             // }
 	COMMENT                 // The comment text
 	RESULT                  // 1-0, 0-1, 1/2-1/2
+	CAPTURE                 // 'x' in moves
+	FILE                    // a-h in moves when used as disambiguation
+	RANK                    // 1-8 in moves when used as disambiguation
 )
 
 type Token struct {
@@ -77,6 +80,12 @@ func (l *Lexer) readResult() Token {
 	return Token{Type: MOVE_NUMBER, Value: result}
 }
 
+func (l *Lexer) readRank() Token {
+	rank := string(l.ch)
+	l.readChar()
+	return Token{Type: RANK, Value: rank}
+}
+
 func (l *Lexer) readComment() Token {
 	position := l.position
 	for l.ch != '}' && l.ch != 0 {
@@ -86,38 +95,35 @@ func (l *Lexer) readComment() Token {
 	return Token{Type: COMMENT, Value: comment}
 }
 
+// Update readPieceMove to handle piece moves
 func (l *Lexer) readPieceMove() Token {
-	// First capture the piece
+	// Capture just the piece
 	piece := string(l.ch)
 	l.readChar()
 
-	// If there's a capture or additional piece qualifier, we need to handle that
-	// (not implemented in this version but would go here)
-
-	// Return just the piece - the square will be read in the next token
+	// Return just the piece - the square or capture will be read in subsequent tokens
 	return Token{Type: PIECE, Value: piece}
 }
 
 func (l *Lexer) readMove() Token {
 	position := l.position
-	for isLetter(l.ch) || isDigit(l.ch) || l.ch == '-' {
+
+	// For pawn captures
+	if isFile(l.ch) {
+		file := string(l.ch)
+		l.readChar()
+
+		// Check for capture
+		if l.ch == 'x' {
+			return Token{Type: FILE, Value: file}
+		}
+	}
+
+	// Read the full square
+	for isFile(l.ch) || isDigit(l.ch) {
 		l.readChar()
 	}
-
-	word := l.input[position:l.position]
-
-	// Check if it's a result
-	if isResult(word) {
-		return Token{Type: RESULT, Value: word}
-	}
-
-	// Check if it's a square
-	if isSquare(word) {
-		return Token{Type: SQUARE, Value: word}
-	}
-
-	// Must be some other identifier
-	return Token{Type: SQUARE, Value: word}
+	return Token{Type: SQUARE, Value: l.input[position:l.position]}
 }
 
 func (l *Lexer) readChar() {
@@ -188,12 +194,22 @@ func (l *Lexer) NextToken() Token {
 		}
 		l.readChar()
 		return Token{Type: DOT, Value: "."}
+	case 'x':
+		l.readChar()
+		return Token{Type: CAPTURE, Value: "x"}
 	case '-':
 		return l.readResult()
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		if l.inTag {
 			return l.readTagValue()
 		}
+
+		// Look at previous characters to determine context
+		if l.position > 0 && unicode.IsUpper(rune(l.input[l.position-1])) {
+			// If preceded by a piece, it's a rank disambiguation
+			return l.readRank()
+		}
+
 		// Look ahead to see if this number is followed by a dot or hyphen
 		position := l.position
 		for l.ch != 0 && isDigit(l.ch) {

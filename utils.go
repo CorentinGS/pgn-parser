@@ -22,3 +22,12 @@ func isWhitespace(ch byte) bool {
 func isResult(s string) bool {
 	return s == "1-0" || s == "0-1" || s == "1/2-1/2" || s == "*"
 }
+
+// Helper function to check if a character is a valid file
+func isFile(ch byte) bool {
+	return ch >= 'a' && ch <= 'h'
+}
+
+func isRow(ch byte) bool {
+	return ch >= '1' && ch <= '8'
+}
