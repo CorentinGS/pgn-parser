@@ -8,23 +8,25 @@ import (
 type TokenType int
 
 const (
-	EOF           TokenType = iota
-	TAG_START               // [
-	TAG_END                 // ]
-	TAG_KEY                 // The key part of a tag (e.g., "Site")
-	TAG_VALUE               // The value part of a tag (e.g., "Internet")
-	MOVE_NUMBER             // 1, 2, 3, etc.
-	DOT                     // .
-	ELLIPSIS                // ...
-	PIECE                   // N, B, R, Q, K
-	SQUARE                  // e4, e5, etc.
-	COMMENT_START           // {
-	COMMENT_END             // }
-	COMMENT                 // The comment text
-	RESULT                  // 1-0, 0-1, 1/2-1/2
-	CAPTURE                 // 'x' in moves
-	FILE                    // a-h in moves when used as disambiguation
-	RANK                    // 1-8 in moves when used as disambiguation
+	EOF              TokenType = iota
+	TAG_START                  // [
+	TAG_END                    // ]
+	TAG_KEY                    // The key part of a tag (e.g., "Site")
+	TAG_VALUE                  // The value part of a tag (e.g., "Internet")
+	MOVE_NUMBER                // 1, 2, 3, etc.
+	DOT                        // .
+	ELLIPSIS                   // ...
+	PIECE                      // N, B, R, Q, K
+	SQUARE                     // e4, e5, etc.
+	COMMENT_START              // {
+	COMMENT_END                // }
+	COMMENT                    // The comment text
+	RESULT                     // 1-0, 0-1, 1/2-1/2
+	CAPTURE                    // 'x' in moves
+	FILE                       // a-h in moves when used as disambiguation
+	RANK                       // 1-8 in moves when used as disambiguation
+	KINGSIDE_CASTLE            // 0-0
+	QUEENSIDE_CASTLE           // 0-0-0
 )
 
 type Token struct {
@@ -155,6 +157,45 @@ func (l *Lexer) readTagKey() Token {
 	return Token{Type: TAG_KEY, Value: l.input[position:l.position]}
 }
 
+func (l *Lexer) readCastling() (Token, bool) {
+	position := l.position
+
+	// First character should be uppercase 'O'
+	if l.ch != 'O' {
+		return Token{}, false
+	}
+
+	// Check if we have enough characters for at least kingside castling (O-O)
+	if l.position+2 >= len(l.input) {
+		return Token{}, false
+	}
+
+	// Check for "O-O" pattern
+	if l.peekChar() != '-' {
+		return Token{}, false
+	}
+	l.readChar() // skip O
+	l.readChar() // skip -
+
+	if l.ch != 'O' {
+		// Reset if pattern doesn't match
+		l.position = position
+		l.readPosition = position + 1
+		l.ch = l.input[position]
+		return Token{}, false
+	}
+	l.readChar() // skip O
+
+	// Look ahead to see if this is queenside castling (O-O-O)
+	if l.ch == '-' && l.peekChar() == 'O' {
+		l.readChar() // skip -
+		l.readChar() // skip O
+		return Token{Type: QUEENSIDE_CASTLE, Value: "O-O-O"}, true
+	}
+
+	return Token{Type: KINGSIDE_CASTLE, Value: "O-O"}, true
+}
+
 func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()
 
@@ -199,6 +240,13 @@ func (l *Lexer) NextToken() Token {
 		return Token{Type: CAPTURE, Value: "x"}
 	case '-':
 		return l.readResult()
+	case 'O':
+		// Check for castling
+		if token, isCastling := l.readCastling(); isCastling {
+			return token
+		}
+		// If not castling, treat as a regular piece move
+		return l.readPieceMove()
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		if l.inTag {
 			return l.readTagValue()

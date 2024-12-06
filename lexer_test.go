@@ -215,3 +215,95 @@ func TestCapturesInGame(t *testing.T) {
 		}
 	}
 }
+
+func TestCaslting(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Short castle",
+			input: "O-O",
+			expected: []Token{
+				{Type: KINGSIDE_CASTLE, Value: "O-O"},
+			},
+		},
+		{
+			name:  "Long castle",
+			input: "O-O-O",
+			expected: []Token{
+				{Type: QUEENSIDE_CASTLE, Value: "O-O-O"},
+			},
+		},
+		{
+			name:  "Short castle in game",
+			input: "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. O-O",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: SQUARE, Value: "e5"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f3"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "c6"},
+				{Type: MOVE_NUMBER, Value: "3"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "B"},
+				{Type: SQUARE, Value: "c4"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f6"},
+				{Type: MOVE_NUMBER, Value: "4"},
+				{Type: DOT, Value: "."},
+				{Type: KINGSIDE_CASTLE, Value: "O-O"},
+			},
+		},
+		{
+			name:  "Long castle in game",
+			input: "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. O-O-O",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: SQUARE, Value: "e5"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f3"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "c6"},
+				{Type: MOVE_NUMBER, Value: "3"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "B"},
+				{Type: SQUARE, Value: "c4"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f6"},
+				{Type: MOVE_NUMBER, Value: "4"},
+				{Type: DOT, Value: "."},
+				{Type: QUEENSIDE_CASTLE, Value: "O-O-O"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
