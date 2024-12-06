@@ -2,124 +2,15 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"io"
-	"strings"
 )
 
-// Game represents a complete PGN game as raw text before tokenization
 type Game struct {
 	Raw string
 }
 
-// Scanner handles reading PGN games from a source
-type Scanner struct {
-	reader *bufio.Reader
-	buffer string
-}
-
-// NewScanner creates a new PGN scanner
-func NewScanner(r io.Reader) *Scanner {
-	return &Scanner{
-		reader: bufio.NewReader(r),
-	}
-}
-
-// ScanGame reads the next complete game from the input
-// Returns nil when there are no more games
-func (s *Scanner) ScanGame() (*Game, error) {
-	var gameBuilder strings.Builder
-	inGame := false
-	bracketCount := 0
-	emptyLineCount := 0
-
-	// Handle buffered content first
-	if s.buffer != "" {
-		gameBuilder.WriteString(s.buffer)
-		s.buffer = ""
-		inGame = true
-	}
-
-	for {
-		line, err := s.reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-
-		trimmedLine := strings.TrimSpace(line)
-
-		// Handle empty lines
-		if trimmedLine == "" {
-			if inGame {
-				emptyLineCount++
-				if emptyLineCount >= 2 && isGameComplete(gameBuilder.String()) {
-					break
-				}
-			}
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		emptyLineCount = 0
-
-		// Start of a new game
-		if strings.HasPrefix(trimmedLine, "[") {
-			if inGame && isGameComplete(gameBuilder.String()) {
-				s.buffer = line
-				break
-			}
-			inGame = true
-		}
-
-		if inGame {
-			gameBuilder.WriteString(line)
-			bracketCount = updateBracketCount(line, bracketCount)
-
-			if bracketCount == 0 && isGameComplete(trimmedLine) {
-				if err == io.EOF {
-					break
-				}
-				continue
-			}
-		}
-
-		if err == io.EOF {
-			break
-		}
-	}
-
-	if gameBuilder.Len() > 0 {
-		return &Game{Raw: gameBuilder.String()}, nil
-	}
-
-	return nil, io.EOF
-}
-
-// HasNext checks if there are more games to read
-func (s *Scanner) HasNext() bool {
-	if s.buffer != "" {
-		return true
-	}
-
-	b, err := s.reader.Peek(1)
-	if err != nil {
-		return false
-	}
-
-	// Skip leading whitespace
-	for len(b) > 0 && isWhitespace(b[0]) {
-		s.reader.ReadByte()
-		b, err = s.reader.Peek(1)
-		if err != nil {
-			return false
-		}
-	}
-
-	return len(b) > 0
-}
-
-// TokenizeGame converts a raw game into tokens using the lexer
+// TokenizeGame function to tokenize a PGN game
 func TokenizeGame(game *Game) ([]Token, error) {
 	if game == nil {
 		return nil, nil
@@ -139,21 +30,199 @@ func TokenizeGame(game *Game) ([]Token, error) {
 	return tokens, nil
 }
 
-// Helper functions
-func isGameComplete(text string) bool {
-	return strings.Contains(text, "1-0") ||
-		strings.Contains(text, "0-1") ||
-		strings.Contains(text, "1/2-1/2") ||
-		strings.Contains(text, "*")
+type Scanner struct {
+	scanner   *bufio.Scanner
+	nextGame  *Game // Buffer for peeked game
+	lastError error // Store last error
 }
 
-func updateBracketCount(line string, count int) int {
-	for _, ch := range line {
-		if ch == '{' {
-			count++
-		} else if ch == '}' {
-			count--
+// NewScanner function to create a new PGN scanner
+func NewScanner(r io.Reader) *Scanner {
+	s := bufio.NewScanner(r)
+	s.Split(splitPGNGames)
+	return &Scanner{scanner: s}
+}
+
+// ScanGame function to scan the next PGN game
+func (s *Scanner) ScanGame() (*Game, error) {
+	// If we have a buffered game from HasNext(), return it
+	if s.nextGame != nil {
+		game := s.nextGame
+		s.nextGame = nil
+		return game, nil
+	}
+
+	// Otherwise scan the next game
+	if s.scanner.Scan() {
+		return &Game{Raw: s.scanner.Text()}, nil
+	}
+
+	// Check for errors
+	if err := s.scanner.Err(); err != nil {
+		return nil, err
+	}
+	return nil, io.EOF
+}
+
+// HasNext function to check if there is another game to read
+func (s *Scanner) HasNext() bool {
+	// If we already have a buffered game, return true
+	if s.nextGame != nil {
+		return true
+	}
+
+	// Try to scan the next game
+	if s.scanner.Scan() {
+		// Store the game in the buffer
+		s.nextGame = &Game{Raw: s.scanner.Text()}
+		return true
+	}
+
+	// Store any error that occurred
+	s.lastError = s.scanner.Err()
+	return false
+}
+
+// Split function for bufio.Scanner to split PGN games
+func splitPGNGames(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	// Skip leading whitespace
+	start := skipLeadingWhitespace(data)
+	if start == len(data) {
+		return handleEOF(data, atEOF)
+	}
+
+	// Find the start of the game
+	start = findGameStart(data, start, atEOF)
+	if start == -1 {
+		return 0, nil, nil
+	}
+
+	// Process the game content
+	return processGameContent(data, start, atEOF)
+}
+
+// Helper to skip leading whitespace
+func skipLeadingWhitespace(data []byte) int {
+	start := 0
+	for ; start < len(data); start++ {
+		if !isWhitespace(data[start]) {
+			break
 		}
 	}
-	return count
+	return start
+}
+
+// Helper to handle EOF scenarios
+func handleEOF(data []byte, atEOF bool) (int, []byte, error) {
+	if atEOF {
+		return len(data), nil, nil
+	}
+	return 0, nil, nil
+}
+
+// Helper to find the start of a game (first '[' character)
+func findGameStart(data []byte, start int, atEOF bool) int {
+	// If the first character is not '[', find the next '[' character
+	if start < len(data) && data[start] != '[' {
+		idx := bytes.IndexByte(data[start:], '[')
+		if idx == -1 {
+			if atEOF {
+				return -1 // this could be removed as we return -1 in the next line anyway (just to be explicit and debuggable)
+			}
+			return -1
+		}
+		start += idx
+	}
+	return start
+}
+
+// Helper to process the content of a game and return the token or advance position
+func processGameContent(data []byte, start int, atEOF bool) (advance int, token []byte, err error) {
+	var i int                                   // Loop variable
+	var inBrackets, inComment, foundResult bool // State variables
+	resultStart := -1                           // Start position of result token
+
+	// Process the game content
+	for i = start; i < len(data); i++ {
+		// first check if we are in brackets or comments
+		inBrackets = updateBracketState(data[i], inBrackets, inComment)
+		inComment = updateCommentState(data[i], inComment)
+
+		// when we are not in brackets or comments, we can check for the result token
+		if foundResult && !inBrackets && !inComment && data[i] == '\n' {
+			nextGame := findNextGameStart(data[i:])
+			if nextGame != -1 {
+				// return the next game start position and the current game content
+				return i + nextGame, bytes.TrimSpace(data[start:i]), nil
+			}
+		}
+
+		// check for result token if we are not in brackets or comments and haven't found it yet
+		if !inBrackets && !inComment && !foundResult {
+			foundResult, resultStart = checkForResult(data, i)
+		}
+	}
+
+	// check for result token at EOF if we haven't found it yet
+	if atEOF && foundResult && resultStart > 0 {
+		return len(data), bytes.TrimSpace(data[start:]), nil
+	}
+
+	if !atEOF || i <= start {
+		return 0, nil, nil
+	}
+
+	// return the current game content
+	return len(data), bytes.TrimSpace(data[start:]), nil
+}
+
+// Helper to update bracket state based on current character
+func updateBracketState(ch byte, inBrackets bool, inComment bool) bool {
+	if ch == '[' && !inComment {
+		return true
+	} else if ch == ']' && !inComment {
+		return false
+	}
+	return inBrackets
+}
+
+// Helper to update comment state based on current character
+func updateCommentState(ch byte, inComment bool) bool {
+	if ch == '{' {
+		return true
+	} else if ch == '}' && inComment {
+		return false
+	}
+	return inComment
+}
+
+// Helper to find the next game start after a newline character
+func findNextGameStart(data []byte) int {
+	nextGame := bytes.Index(data, []byte("[Event "))
+	if nextGame != -1 {
+		return nextGame
+	}
+	return -1
+}
+
+// Helper to check for game result tokens (e.g., "1-0", "0-1", "1/2-1/2", "*")
+func checkForResult(data []byte, i int) (bool, int) {
+	const minLength = 3        // Minimum length for results like "1-0"
+	const fullResultLength = 7 // Length for "1/2-1/2"
+
+	if len(data)-i >= minLength {
+		switch {
+		case bytes.HasPrefix(data[i:], []byte("1-0")):
+			return true, i
+		case bytes.HasPrefix(data[i:], []byte("0-1")):
+			return true, i
+		case len(data)-i >= fullResultLength && bytes.HasPrefix(data[i:], []byte("1/2-1/2")):
+			return true, i
+		case data[i] == '*':
+			return true, i
+		default:
+			break
+		}
+	}
+	return false, -1
 }
