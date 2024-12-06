@@ -6,8 +6,11 @@
 - [ ] Moves
   - [x] Simple moves
   - [x] Captures
-  - [ ] Castling
+  - [x] Castling
   - [ ] Promotion
+  - [ ] Check
+  - [ ] Checkmate
+  - [ ] Disambiguation
 - [x] Comments
 - [ ] Variations
 - [ ] NAGs
