@@ -5,7 +5,7 @@
 - [x] Tags
 - [ ] Moves
   - [x] Simple moves
-  - [ ] Captures
+  - [x] Captures
   - [ ] Castling
   - [ ] Promotion
 - [x] Comments
