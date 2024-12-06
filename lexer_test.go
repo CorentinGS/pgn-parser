@@ -130,6 +130,28 @@ func TestCaptures(t *testing.T) {
 				{Type: SQUARE, Value: "d5"},
 			},
 		},
+		{
+			name:  "Complex position with captures",
+			input: "1. e4 d5 2. Nf3 Nc6 3. Nbxd5",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: SQUARE, Value: "d5"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f3"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "c6"},
+				{Type: MOVE_NUMBER, Value: "3"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: FILE, Value: "b"},
+				{Type: CAPTURE, Value: "x"},
+				{Type: SQUARE, Value: "d5"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
