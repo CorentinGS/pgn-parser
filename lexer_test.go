@@ -739,3 +739,212 @@ func TestCaslting(t *testing.T) {
 		})
 	}
 }
+
+func TestFuzzRepro_b41648629adb0a5d_y(t *testing.T) {
+	input := "y"
+	lexer := NewLexer(input)
+
+	var tokens []Token
+	for {
+		token := lexer.NextToken()
+		tokens = append(tokens, token)
+
+		if token.Type == EOF {
+			break
+		}
+
+		if len(tokens) > len(input)*2 { // Arbitrary limit based on input length
+			t.Errorf("Too many tokens generated for input length")
+			break
+		}
+	}
+}
+
+func TestFuzzRepro_ff9f899cf2252ff1_a(t *testing.T) {
+	input := "a"
+	lexer := NewLexer(input)
+
+	var tokens []Token
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Lexer panicked on input %q: %v", input, r)
+		}
+	}()
+	for {
+		token := lexer.NextToken()
+		tokens = append(tokens, token)
+
+		if token.Type == EOF {
+			break
+		}
+
+		if len(tokens) > len(input)*2 { // Arbitrary limit based on input length
+			t.Errorf("Too many tokens generated for input length")
+			break
+		}
+	}
+}
+
+func TestFuzzRepro_167803a88524c396(t *testing.T) {
+	input := "{[%0"
+	lexer := NewLexer(input)
+
+	var tokens []Token
+	for {
+		token := lexer.NextToken()
+		tokens = append(tokens, token)
+
+		if token.Type == EOF {
+			break
+		}
+
+		if len(tokens) > len(input)*2 { // Arbitrary limit based on input length
+			t.Errorf("Too many tokens generated for input length")
+			break
+		}
+	}
+}
+
+func TestFuzzRepro_b68c42fa4236bdd7(t *testing.T) {
+	input := "{[%,\""
+	lexer := NewLexer(input)
+
+	var tokens []Token
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Lexer panicked on input %q: %v", input, r)
+		}
+	}()
+	for {
+		token := lexer.NextToken()
+		tokens = append(tokens, token)
+
+		if token.Type == EOF {
+			break
+		}
+
+		if len(tokens) > len(input)*2 { // Arbitrary limit based on input length
+			t.Errorf("Too many tokens generated for input length")
+			break
+		}
+	}
+}
+
+func FuzzLexer(f *testing.F) {
+	// Add seeds covering all possible token types
+	seeds := []string{
+		// Basic moves and numbers
+		"1. e4 e5 2. Nf3",
+
+		// Tags
+		"[Event \"Test\"][Site \"Chess.com\"]",
+
+		// Comments with commands
+		"{Normal comment} {[%clk 1:23:45]} {[%eval +1.2]}",
+
+		// Pieces and squares with disambiguation
+		"Nbd7 R1e2 Qh4xe4",
+
+		// Castle both sides
+		"O-O O-O-O",
+
+		// Promotion with checks
+		"e8=Q+ f1=N#",
+
+		// NAGs
+		"$1 $20 $123",
+
+		// Variations
+		"1. e4 e5 (1... c5 2. Nf3 (2. c3 d5)) 2. Nf3",
+
+		// Complex combinations
+		"1. e4 $1 {Great move} (1... e5?! {Dubious [%clk 0:30:00]}) 1... c5",
+
+		// Full game with metadata
+		`[Event "Test"]
+         1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 {Ruy Lopez} 4. Ba4 Nf6 5. O-O
+         Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 1-0`,
+
+		// Various special characters
+		"+ #",
+
+		// Results
+		"1-0 0-1 1/2-1/2",
+
+		// Edge cases
+		"a1 h8 a8 h1", // Corner squares
+		"Qa1xb2",      // Capture with full disambiguation
+		"e7e8=Q",      // Promotion without capture
+		"exd8=Q+",     // Promotion with capture and check
+	}
+
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, input string) {
+		// Prevent excessively long inputs
+		if len(input) > 1000 {
+			return
+		}
+
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Lexer panicked on input %q: %v", input, r)
+			}
+		}()
+
+		lexer := NewLexer(input)
+		var tokens []Token
+
+		t.Log("Input:", input)
+
+		// Read all tokens
+		for {
+			token := lexer.NextToken()
+			tokens = append(tokens, token)
+
+			// Stop at EOF
+			if token.Type == EOF {
+				break
+			}
+
+			// Prevent infinite loops
+			if len(tokens) > len(input)*3 {
+				t.Log("Tokens:", tokens)
+				t.Errorf("Too many tokens generated for input length")
+				break
+			}
+		}
+
+		// Validate token sequence
+		validateTokens(t, tokens)
+	})
+}
+
+func validateTokens(t *testing.T, tokens []Token) {
+
+	for i, token := range tokens {
+
+		// Validate specific token values
+		switch token.Type {
+		case FILE:
+			if len(token.Value) != 1 || token.Value[0] < 'a' || token.Value[0] > 'h' {
+				t.Errorf("Invalid file at token %d: %v", i, token.Value)
+			}
+		case RANK:
+			if len(token.Value) != 1 || (!isRank(token.Value[0]) && token.Error == nil) {
+				t.Errorf("Invalid rank at token %d: %v", i, token.Value)
+			}
+		case PIECE:
+			if len(token.Value) != 1 || (!isPiece(token.Value[0]) && token.Error == nil) {
+				t.Errorf("Invalid piece at token %d: %v", i, token.Value)
+			}
+		case PROMOTION_PIECE:
+			if len(token.Value) != 1 || (!isPiece(token.Value[0]) && token.Error == nil) {
+				t.Errorf("Invalid promotion piece at token %d: %v", i, token.Value)
+			}
+		}
+	}
+
+}

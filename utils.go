@@ -24,3 +24,20 @@ func isFile(ch byte) bool {
 func isAlphaNumeric(ch byte) bool {
 	return isLetter(ch) || isDigit(ch)
 }
+
+// Helper function for piece validation
+func isPiece(p byte) bool {
+	return p == byte('N') || p == byte('B') || p == byte('R') || p == byte('Q') || p == byte('K')
+}
+
+func isRank(ch byte) bool {
+	return ch >= '1' && ch <= '8'
+}
+
+func isSquare(s string) bool {
+	if len(s) != 2 {
+		return false
+	}
+
+	return isFile(s[0]) && isRank(s[1])
+}

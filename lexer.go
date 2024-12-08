@@ -43,6 +43,7 @@ const (
 type Token struct {
 	Value string
 	Type  TokenType
+	Error error
 }
 
 type Lexer struct {
@@ -95,6 +96,12 @@ func (l *Lexer) readCommandName() Token {
 
 func (l *Lexer) readCommandParam() Token {
 	l.skipWhitespace()
+
+	// check for EOF
+	if l.ch == 0 {
+		return Token{Type: EOF, Value: ""}
+	}
+
 	position := l.position
 	if l.ch == '"' {
 		// Handle quoted parameter
@@ -113,6 +120,11 @@ func (l *Lexer) readCommandParam() Token {
 	for l.ch != ',' && l.ch != ']' && l.ch != 0 && l.ch != '}' {
 		l.readChar()
 	}
+
+	if l.ch == '}' && l.inCommand {
+		return Token{Type: EOF, Error: ErrInvalidCommand(l.position)}
+	}
+
 	l.inCommandParam = l.ch == ',' // set flag if we are still in a command parameter
 	return Token{Type: COMMAND_PARAM, Value: strings.TrimSpace(l.input[position:l.position])}
 }
@@ -147,6 +159,10 @@ func (l *Lexer) readResult() Token {
 
 func (l *Lexer) readRank() Token {
 	rank := string(l.ch)
+	if !isRank(l.ch) {
+		l.readChar()
+		return Token{Type: RANK, Error: ErrInvalidRank(l.position), Value: rank}
+	}
 	l.readChar()
 	return Token{Type: RANK, Value: rank}
 }
@@ -165,9 +181,25 @@ func (l *Lexer) readComment() Token {
 			l.readChar() // skip [
 			l.readChar() // skip %
 			l.inCommand = true
+			// check for EOF after command start
+			if l.ch == 0 {
+				return Token{
+					Type:  EOF,
+					Error: ErrInvalidCommand(l.position),
+				}
+			}
 			return Token{Type: COMMAND_START, Value: "[%"}
 		}
 		l.readChar()
+	}
+
+	// Check for unterminated comment
+	if l.ch == 0 {
+		l.readChar()
+		return Token{
+			Type:  EOF,
+			Error: ErrUnterminatedComment(position),
+		}
 	}
 
 	// Return remaining comment text if any
@@ -182,6 +214,10 @@ func (l *Lexer) readComment() Token {
 func (l *Lexer) readPieceMove() Token {
 	// Capture just the piece
 	piece := string(l.ch)
+	if !isPiece(l.ch) {
+		l.readChar()
+		return Token{Type: PIECE, Error: ErrInvalidPiece(l.position), Value: piece}
+	}
 	l.readChar()
 
 	// Return just the piece - the square or capture will be read in subsequent tokens
@@ -190,6 +226,11 @@ func (l *Lexer) readPieceMove() Token {
 
 func (l *Lexer) readMove() Token {
 	position := l.position
+
+	// Check for EOF early
+	if l.ch == 0 {
+		return Token{Type: EOF, Value: ""}
+	}
 
 	// For pawn captures
 	if isFile(l.ch) {
@@ -204,6 +245,11 @@ func (l *Lexer) readMove() Token {
 
 	for isFile(l.ch) || isDigit(l.ch) {
 		l.readChar()
+
+		// Check for EOF during the loop
+		if l.ch == 0 {
+			break
+		}
 	}
 
 	// Get the total length of what we read
@@ -217,11 +263,21 @@ func (l *Lexer) readMove() Token {
 		return Token{Type: FILE, Value: string(l.input[position])}
 	}
 
+	// Validate the square (e.g., "e4")
+	if length < 2 || !isFile(l.input[position]) || position+1 >= len(l.input) || !isDigit(l.input[position+1]) {
+		l.readChar()
+		return Token{Type: SQUARE, Value: "", Error: ErrInvalidSquare(position)}
+	}
+
 	return Token{Type: SQUARE, Value: l.input[position:l.position]}
 }
 
 func (l *Lexer) readPromotionPiece() Token {
 	piece := string(l.ch)
+	if !isPiece(l.ch) {
+		l.readChar()
+		return Token{Type: PROMOTION_PIECE, Error: ErrInvalidPiece(l.position), Value: piece}
+	}
 	l.readChar()
 	return Token{Type: PROMOTION_PIECE, Value: piece}
 }
