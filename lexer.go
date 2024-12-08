@@ -41,9 +41,9 @@ const (
 )
 
 type Token struct {
+	Error error
 	Value string
 	Type  TokenType
-	Error error
 }
 
 type Lexer struct {
@@ -109,6 +109,9 @@ func (l *Lexer) readCommandParam() Token {
 		position = l.position
 		for l.ch != '"' && l.ch != 0 {
 			l.readChar()
+		}
+		if l.ch == 0 {
+			return Token{Type: EOF, Error: ErrUnterminatedQuote(position)}
 		}
 		value := l.input[position:l.position]
 		l.readChar() // skip closing quote
