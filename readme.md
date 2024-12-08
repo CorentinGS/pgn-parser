@@ -12,7 +12,6 @@
   - [x] Checkmate
   - [x] Disambiguation
 - [x] Comments
-- [ ] Variations
+- [x] Variations
 - [x] NAGs
 - [x] Results
-

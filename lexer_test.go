@@ -443,6 +443,123 @@ func TestCapturesInGame(t *testing.T) {
 	}
 }
 
+func TestVariations(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Variation start",
+			input: "1. e4 (1. d4) e5",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: VARIATION_START, Value: "("},
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "d4"},
+				{Type: VARIATION_END, Value: ")"},
+				{Type: SQUARE, Value: "e5"},
+			},
+		},
+		{
+			name:  "Variation in game",
+			input: "1. e4 (1. d4) e5 2. Nf3 (2. Nc3) Nc6",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: VARIATION_START, Value: "("},
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "d4"},
+				{Type: VARIATION_END, Value: ")"},
+				{Type: SQUARE, Value: "e5"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f3"},
+				{Type: VARIATION_START, Value: "("},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "c3"},
+				{Type: VARIATION_END, Value: ")"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "c6"},
+			},
+		},
+		{
+			name:  "Nested variations",
+			input: "1. e4 (1. d4 (1. c4)) 1... e5",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: VARIATION_START, Value: "("},
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "d4"},
+				{Type: VARIATION_START, Value: "("},
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "c4"},
+				{Type: VARIATION_END, Value: ")"},
+				{Type: VARIATION_END, Value: ")"},
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: ELLIPSIS, Value: "..."},
+				{Type: SQUARE, Value: "e5"},
+			},
+		},
+
+		{
+			name:  "Another variation",
+			input: "1. e4 e5 (1... e6 2. d4 d5) 2. Nf3",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: SQUARE, Value: "e5"},
+				{Type: VARIATION_START, Value: "("},
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: ELLIPSIS, Value: "..."},
+				{Type: SQUARE, Value: "e6"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "d4"},
+				{Type: SQUARE, Value: "d5"},
+				{Type: VARIATION_END, Value: ")"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f3"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
+
 func TestCaslting(t *testing.T) {
 	tests := []struct {
 		name     string

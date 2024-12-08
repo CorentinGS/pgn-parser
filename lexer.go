@@ -32,6 +32,8 @@ const (
 	CHECK                      // + in moves
 	CHECKMATE                  // # in moves
 	NAG                        // Numeric Annotation Glyph (e.g., $1, $2, etc.)
+	VARIATION_START            // ( for starting a variation
+	VARIATION_END              // ) for ending a variation
 )
 
 type Token struct {
@@ -247,6 +249,13 @@ func (l *Lexer) NextToken() Token {
 	}
 
 	switch l.ch {
+	case '(':
+		l.readChar()
+		return Token{Type: VARIATION_START, Value: "("}
+
+	case ')':
+		l.readChar()
+		return Token{Type: VARIATION_END, Value: ")"}
 	case '[':
 		l.inTag = true
 		l.readChar()
