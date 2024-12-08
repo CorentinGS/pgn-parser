@@ -10,7 +10,7 @@
   - [ ] Promotion
   - [ ] Check
   - [ ] Checkmate
-  - [ ] Disambiguation
+  - [x] Disambiguation
 - [x] Comments
 - [ ] Variations
 - [ ] NAGs

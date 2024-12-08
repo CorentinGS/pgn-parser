@@ -86,6 +86,75 @@ func TestLexer(t *testing.T) {
 	}
 }
 
+func TestDisambiguation(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Disambiguation by file",
+			input: "Nbd7",
+			expected: []Token{
+				{Type: PIECE, Value: "N"},
+				{Type: FILE, Value: "b"},
+				{Type: SQUARE, Value: "d7"},
+			},
+		},
+		{
+			name:  "Disambiguation by rank",
+			input: "N4d7",
+			expected: []Token{
+				{Type: PIECE, Value: "N"},
+				{Type: RANK, Value: "4"},
+				{Type: SQUARE, Value: "d7"},
+			},
+		},
+
+		{
+			name:  "Disambiguation in game",
+			input: "1. e4 e5 2. Nf3 Nc6 3. Nbd7",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: SQUARE, Value: "e5"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "f3"},
+				{Type: PIECE, Value: "N"},
+				{Type: SQUARE, Value: "c6"},
+				{Type: MOVE_NUMBER, Value: "3"},
+				{Type: DOT, Value: "."},
+				{Type: PIECE, Value: "N"},
+				{Type: FILE, Value: "b"},
+				{Type: SQUARE, Value: "d7"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
+
 func TestCaptures(t *testing.T) {
 	tests := []struct {
 		name     string

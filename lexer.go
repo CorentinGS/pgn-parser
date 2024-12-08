@@ -121,10 +121,21 @@ func (l *Lexer) readMove() Token {
 		}
 	}
 
-	// Read the full square
 	for isFile(l.ch) || isDigit(l.ch) {
 		l.readChar()
 	}
+
+	// Get the total length of what we read
+	length := l.position - position
+
+	// If we read 3 characters, first one is disambiguation
+	if length == 3 {
+		l.readPosition = position + 1
+		l.readChar()
+		// Return just the first character as disambiguation
+		return Token{Type: FILE, Value: string(l.input[position])}
+	}
+
 	return Token{Type: SQUARE, Value: l.input[position:l.position]}
 }
 
