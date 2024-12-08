@@ -7,7 +7,7 @@
   - [x] Simple moves
   - [x] Captures
   - [x] Castling
-  - [ ] Promotion
+  - [x] Promotion
   - [ ] Check
   - [ ] Checkmate
   - [x] Disambiguation

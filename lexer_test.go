@@ -155,6 +155,65 @@ func TestDisambiguation(t *testing.T) {
 	}
 }
 
+func TestPromotion(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Promotion",
+			input: "e8=Q",
+			expected: []Token{
+				{Type: SQUARE, Value: "e8"},
+				{Type: PROMOTION, Value: "="},
+				{Type: PROMOTION_PIECE, Value: "Q"},
+			},
+		},
+		{
+			name:  "Promotion in game",
+			input: "1. e8=Q e1=N 2. exd8=R",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e8"},
+				{Type: PROMOTION, Value: "="},
+				{Type: PROMOTION_PIECE, Value: "Q"},
+				{Type: SQUARE, Value: "e1"},
+				{Type: PROMOTION, Value: "="},
+				{Type: PROMOTION_PIECE, Value: "N"},
+				{Type: MOVE_NUMBER, Value: "2"},
+				{Type: DOT, Value: "."},
+				{Type: FILE, Value: "e"},
+				{Type: CAPTURE, Value: "x"},
+				{Type: SQUARE, Value: "d8"},
+				{Type: PROMOTION, Value: "="},
+				{Type: PROMOTION_PIECE, Value: "R"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
+
 func TestCaptures(t *testing.T) {
 	tests := []struct {
 		name     string

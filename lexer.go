@@ -27,6 +27,8 @@ const (
 	RANK                       // 1-8 in moves when used as disambiguation
 	KINGSIDE_CASTLE            // 0-0
 	QUEENSIDE_CASTLE           // 0-0-0
+	PROMOTION                  // = in moves
+	PROMOTION_PIECE            // The piece being promoted to (Q, R, B, N)
 )
 
 type Token struct {
@@ -137,6 +139,12 @@ func (l *Lexer) readMove() Token {
 	}
 
 	return Token{Type: SQUARE, Value: l.input[position:l.position]}
+}
+
+func (l *Lexer) readPromotionPiece() Token {
+	piece := string(l.ch)
+	l.readChar()
+	return Token{Type: PROMOTION_PIECE, Value: piece}
 }
 
 func (l *Lexer) readChar() {
@@ -258,6 +266,9 @@ func (l *Lexer) NextToken() Token {
 		}
 		// If not castling, treat as a regular piece move
 		return l.readPieceMove()
+	case '=':
+		l.readChar()
+		return Token{Type: PROMOTION, Value: "="}
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		if l.inTag {
 			return l.readTagValue()
@@ -295,6 +306,10 @@ func (l *Lexer) NextToken() Token {
 			return l.readTagKey()
 		} else if isLetter(l.ch) {
 			if unicode.IsUpper(rune(l.ch)) {
+				// If it follows a promotion token, it's a promotion piece
+				if l.position > 0 && l.input[l.position-1] == '=' {
+					return l.readPromotionPiece()
+				}
 				return l.readPieceMove()
 			}
 			return l.readMove()
