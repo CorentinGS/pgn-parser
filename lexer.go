@@ -31,6 +31,7 @@ const (
 	PROMOTION_PIECE            // The piece being promoted to (Q, R, B, N)
 	CHECK                      // + in moves
 	CHECKMATE                  // # in moves
+	NAG                        // Numeric Annotation Glyph (e.g., $1, $2, etc.)
 )
 
 type Token struct {
@@ -72,6 +73,22 @@ func (l *Lexer) readNumber() Token {
 		l.readChar()
 	}
 	return Token{Type: MOVE_NUMBER, Value: l.input[position:l.position]}
+}
+
+func (l *Lexer) readNAG() Token {
+	l.readChar() // skip the $ symbol
+	position := l.position
+
+	// Read all digits following the $
+	for isDigit(l.ch) {
+		l.readChar()
+	}
+
+	// Include the $ in the token value
+	return Token{
+		Type:  NAG,
+		Value: "$" + l.input[position:l.position],
+	}
 }
 
 func (l *Lexer) readResult() Token {
@@ -261,6 +278,8 @@ func (l *Lexer) NextToken() Token {
 		return Token{Type: CAPTURE, Value: "x"}
 	case '-':
 		return l.readResult()
+	case '$':
+		return l.readNAG()
 	case 'O':
 		// Check for castling
 		if token, isCastling := l.readCastling(); isCastling {

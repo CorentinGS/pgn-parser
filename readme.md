@@ -13,6 +13,6 @@
   - [x] Disambiguation
 - [x] Comments
 - [ ] Variations
-- [ ] NAGs
+- [x] NAGs
 - [x] Results
 
