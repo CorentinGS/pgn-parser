@@ -12,6 +12,11 @@
   - [x] Checkmate
   - [x] Disambiguation
 - [x] Comments
+  - [x] Command
+    - [x] Delimiters `[` and `]`
+    - [x] Start of command `%`
+    - [x] Command name
+    - [x] Parameters
 - [x] Variations
 - [x] NAGs
 - [x] Results

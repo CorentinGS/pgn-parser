@@ -20,3 +20,7 @@ func isResult(s string) bool {
 func isFile(ch byte) bool {
 	return ch >= 'a' && ch <= 'h'
 }
+
+func isAlphaNumeric(ch byte) bool {
+	return isLetter(ch) || isDigit(ch)
+}

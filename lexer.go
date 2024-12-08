@@ -34,6 +34,10 @@ const (
 	NAG                        // Numeric Annotation Glyph (e.g., $1, $2, etc.)
 	VARIATION_START            // ( for starting a variation
 	VARIATION_END              // ) for ending a variation
+	COMMAND_START              // [%
+	COMMAND_NAME               // The command name (e.g., clk, eval)
+	COMMAND_PARAM              // Command parameter
+	COMMAND_END                // ]
 )
 
 type Token struct {
@@ -42,12 +46,14 @@ type Token struct {
 }
 
 type Lexer struct {
-	input        string
-	position     int
-	readPosition int
-	ch           byte
-	inTag        bool
-	inComment    bool
+	input          string
+	position       int
+	readPosition   int
+	ch             byte
+	inTag          bool
+	inComment      bool
+	inCommand      bool
+	inCommandParam bool
 }
 
 func NewLexer(input string) *Lexer {
@@ -75,6 +81,40 @@ func (l *Lexer) readNumber() Token {
 		l.readChar()
 	}
 	return Token{Type: MOVE_NUMBER, Value: l.input[position:l.position]}
+}
+
+func (l *Lexer) readCommandName() Token {
+	position := l.position
+	// Read alphanumeric characters until space
+	for isAlphaNumeric(l.ch) {
+		l.readChar()
+	}
+	l.inCommandParam = true
+	return Token{Type: COMMAND_NAME, Value: l.input[position:l.position]}
+}
+
+func (l *Lexer) readCommandParam() Token {
+	l.skipWhitespace()
+	position := l.position
+	if l.ch == '"' {
+		// Handle quoted parameter
+		l.readChar() // skip opening quote
+		position = l.position
+		for l.ch != '"' && l.ch != 0 {
+			l.readChar()
+		}
+		value := l.input[position:l.position]
+		l.readChar() // skip closing quote
+		return Token{Type: COMMAND_PARAM, Value: value}
+	}
+
+	// Read until comma or ] for non-quoted parameters
+	// Allow colons and other characters within the parameter
+	for l.ch != ',' && l.ch != ']' && l.ch != 0 && l.ch != '}' {
+		l.readChar()
+	}
+	l.inCommandParam = l.ch == ',' // set flag if we are still in a command parameter
+	return Token{Type: COMMAND_PARAM, Value: strings.TrimSpace(l.input[position:l.position])}
 }
 
 func (l *Lexer) readNAG() Token {
@@ -113,11 +153,29 @@ func (l *Lexer) readRank() Token {
 
 func (l *Lexer) readComment() Token {
 	position := l.position
+
+	// Look for command start sequence
 	for l.ch != '}' && l.ch != 0 {
+		if l.ch == '[' && l.peekChar() == '%' {
+			if position != l.position {
+				// Return accumulated comment text before the command
+				return Token{Type: COMMENT, Value: strings.TrimSpace(l.input[position:l.position])}
+			}
+			// Start command processing
+			l.readChar() // skip [
+			l.readChar() // skip %
+			l.inCommand = true
+			return Token{Type: COMMAND_START, Value: "[%"}
+		}
 		l.readChar()
 	}
-	comment := strings.TrimSpace(l.input[position:l.position])
-	return Token{Type: COMMENT, Value: comment}
+
+	// Return remaining comment text if any
+	if position != l.position {
+		return Token{Type: COMMENT, Value: strings.TrimSpace(l.input[position:l.position])}
+	}
+
+	return Token{Type: COMMENT_END, Value: "}"}
 }
 
 // Update readPieceMove to handle piece moves
@@ -238,6 +296,24 @@ func (l *Lexer) readCastling() (Token, bool) {
 
 func (l *Lexer) NextToken() Token {
 	l.skipWhitespace()
+
+	if l.inCommand {
+		switch l.ch {
+		case ']':
+			l.inCommand = false
+			l.readChar()
+			return Token{Type: COMMAND_END, Value: "]"}
+		case ',':
+			l.readChar()
+			return l.readCommandParam()
+		default:
+			// check if the previous token was a command start
+			if l.inCommandParam {
+				return l.readCommandParam()
+			}
+			return l.readCommandName()
+		}
+	}
 
 	if l.inComment {
 		if l.ch == '}' {

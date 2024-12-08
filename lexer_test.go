@@ -443,6 +443,94 @@ func TestCapturesInGame(t *testing.T) {
 	}
 }
 
+func TestCommands(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Command",
+			input: "{[%clk 12:34:56]}",
+			expected: []Token{
+				{Type: COMMENT_START, Value: "{"},
+				{Type: COMMAND_START, Value: "[%"},
+				{Type: COMMAND_NAME, Value: "clk"},
+				{Type: COMMAND_PARAM, Value: "12:34:56"},
+				{Type: COMMAND_END, Value: "]"},
+				{Type: COMMENT_END, Value: "}"},
+			},
+		},
+		{
+			name:  "Command in game",
+			input: "1. e4 {[%clk 12:34:56]} e5",
+			expected: []Token{
+				{Type: MOVE_NUMBER, Value: "1"},
+				{Type: DOT, Value: "."},
+				{Type: SQUARE, Value: "e4"},
+				{Type: COMMENT_START, Value: "{"},
+				{Type: COMMAND_START, Value: "[%"},
+				{Type: COMMAND_NAME, Value: "clk"},
+				{Type: COMMAND_PARAM, Value: "12:34:56"},
+				{Type: COMMAND_END, Value: "]"},
+				{Type: COMMENT_END, Value: "}"},
+				{Type: SQUARE, Value: "e5"},
+			},
+		},
+		{ // Test multiple commands
+			name:  "Multiple commands",
+			input: "{[%clk 0:00:07][%eval -6.05] White is toast}",
+			expected: []Token{
+				{Type: COMMENT_START, Value: "{"},
+				{Type: COMMAND_START, Value: "[%"},
+				{Type: COMMAND_NAME, Value: "clk"},
+				{Type: COMMAND_PARAM, Value: "0:00:07"},
+				{Type: COMMAND_END, Value: "]"},
+				{Type: COMMAND_START, Value: "[%"},
+				{Type: COMMAND_NAME, Value: "eval"},
+				{Type: COMMAND_PARAM, Value: "-6.05"},
+				{Type: COMMAND_END, Value: "]"},
+				{Type: COMMENT, Value: "White is toast"},
+				{Type: COMMENT_END, Value: "}"},
+			},
+		},
+		{
+			name:  "Command with multiple parameters",
+			input: "{[%command 1:45:12,Nf6,\"very interesting, but wrong\"]}",
+			expected: []Token{
+				{Type: COMMENT_START, Value: "{"},
+				{Type: COMMAND_START, Value: "[%"},
+				{Type: COMMAND_NAME, Value: "command"},
+				{Type: COMMAND_PARAM, Value: "1:45:12"},
+				{Type: COMMAND_PARAM, Value: "Nf6"},
+				{Type: COMMAND_PARAM, Value: "very interesting, but wrong"},
+				{Type: COMMAND_END, Value: "]"},
+				{Type: COMMENT_END, Value: "}"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
+
 func TestVariations(t *testing.T) {
 	tests := []struct {
 		name     string
