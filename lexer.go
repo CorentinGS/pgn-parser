@@ -29,6 +29,8 @@ const (
 	QUEENSIDE_CASTLE           // 0-0-0
 	PROMOTION                  // = in moves
 	PROMOTION_PIECE            // The piece being promoted to (Q, R, B, N)
+	CHECK                      // + in moves
+	CHECKMATE                  // # in moves
 )
 
 type Token struct {
@@ -269,6 +271,12 @@ func (l *Lexer) NextToken() Token {
 	case '=':
 		l.readChar()
 		return Token{Type: PROMOTION, Value: "="}
+	case '+':
+		l.readChar()
+		return Token{Type: CHECK, Value: "+"}
+	case '#':
+		l.readChar()
+		return Token{Type: CHECKMATE, Value: "#"}
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		if l.inTag {
 			return l.readTagValue()

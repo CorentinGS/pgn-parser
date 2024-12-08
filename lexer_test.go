@@ -86,6 +86,51 @@ func TestLexer(t *testing.T) {
 	}
 }
 
+func TestCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []Token
+	}{
+		{
+			name:  "Check",
+			input: "e5+",
+			expected: []Token{
+				{Type: SQUARE, Value: "e5"},
+				{Type: CHECK, Value: "+"},
+			},
+		},
+		{
+			name:  "Checkmate",
+			input: "e5#",
+			expected: []Token{
+				{Type: SQUARE, Value: "e5"},
+				{Type: CHECKMATE, Value: "#"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lexer := NewLexer(tt.input)
+
+			for i, expected := range tt.expected {
+				token := lexer.NextToken()
+				if token.Type != expected.Type || token.Value != expected.Value {
+					t.Errorf("Token %d - Expected {%v, %q}, got {%v, %q}",
+						i, expected.Type, expected.Value, token.Type, token.Value)
+				}
+			}
+
+			// Verify we get EOF after all tokens
+			token := lexer.NextToken()
+			if token.Type != EOF {
+				t.Errorf("Expected EOF token after capture, got %v", token.Type)
+			}
+		})
+	}
+}
+
 func TestDisambiguation(t *testing.T) {
 	tests := []struct {
 		name     string

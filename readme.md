@@ -3,13 +3,13 @@
 ## IN PROGRESS
 
 - [x] Tags
-- [ ] Moves
+- [x] Moves
   - [x] Simple moves
   - [x] Captures
   - [x] Castling
   - [x] Promotion
-  - [ ] Check
-  - [ ] Checkmate
+  - [x] Check
+  - [x] Checkmate
   - [x] Disambiguation
 - [x] Comments
 - [ ] Variations
